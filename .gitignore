@@ -1,0 +1,33 @@
+# Node
+node_modules/
+.next/
+out/
+
+# Java/Kotlin
+target/
+build/
+*.jar
+*.class
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.joblib
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
