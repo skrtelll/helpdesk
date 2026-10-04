@@ -1,5 +1,6 @@
 package com.helpdesk.backend.user
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -24,6 +25,7 @@ class User {
     @Column(nullable = false, length = 254)
     lateinit var email: String
 
+    @JsonIgnore
     @Column(name = "password_hash", nullable = false)
     lateinit var passwordHash: String
 

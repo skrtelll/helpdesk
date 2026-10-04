@@ -3,9 +3,9 @@ spring:
     name: helpdesk-backend
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/helpdesk}
-    username: ${SPRING_DATASOURCE_USERNAME:helpdesk}
-    password: ${SPRING_DATASOURCE_PASSWORD:helpdesk_dev_password}
+    url: jdbc:postgresql://localhost:5432/helpdesk
+    username: helpdesk
+    password: ${DB_PASSWORD:helpdesk123}
 
   jpa:
     hibernate:
@@ -41,3 +41,13 @@ logging:
   level:
     com.helpdesk.backend: DEBUG
     org.hibernate.SQL: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,loggers,mappings
+  endpoint:
+    health:
+      show-details: always
