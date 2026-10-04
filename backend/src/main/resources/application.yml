@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: helpdesk-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/helpdesk
+    username: helpdesk
+    password: ${DB_PASSWORD:helpdesk123}
+
+  jpa:
+    hibernate:
+      # Схему целиком ведёт Flyway; Hibernate только валидирует соответствие.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+  error:
+    include-message: always
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-do-not-use-in-prod-please-change}
+    access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:60}
+  ml:
+    base-url: ${ML_SERVICE_BASE_URL:http://localhost:8000}
+    internal-secret: ${ML_INTERNAL_SECRET:dev-only-ml-secret}
+    # ML-008: вызов не должен быть частью транзакции создания заявки —
+    # используем отдельный short timeout, чтобы не блокировать пользователя.
+    request-timeout-ms: 2000
+
+logging:
+  level:
+    com.helpdesk.backend: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env,loggers,mappings
+  endpoint:
+    health:
+      show-details: always
