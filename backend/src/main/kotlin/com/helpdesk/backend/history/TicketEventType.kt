@@ -1,5 +1,7 @@
-package com.helpdesk.entity.enums
-enum class EventType {
+package com.helpdesk.backend.history
+
+/** Типы событий аудита. Совпадают с CHECK ck_ticket_history_event_type. */
+enum class TicketEventType {
     TICKET_CREATED,
     ML_PREDICTION_APPLIED,
     ML_PREDICTION_FAILED,
@@ -11,5 +13,5 @@ enum class EventType {
     TICKET_RESOLVED,
     TICKET_REOPENED,
     TICKET_CLOSED,
-    TICKET_CANCELLED
+    TICKET_CANCELLED,
 }
