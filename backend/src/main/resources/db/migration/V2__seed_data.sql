@@ -7,5 +7,5 @@ INSERT INTO categories (code, name, description, active) VALUES
     ('ACCESS',   'Access',   'Запросы и проблемы доступа к системам и ресурсам', TRUE),
     ('SOFTWARE', 'Software', 'Проблемы с программным обеспечением и настройками приложений', TRUE),
     ('HARDWARE', 'Hardware', 'Неисправности и заявки на оборудование', TRUE),
-    ('OTHER',    'Other',    'Категория по умолчанию для новых и неклассифицированных заявок', TRUE)
+    ('OTHER',    'Other',    'Категория по умолчанию для новых и неклассифицированных заявокк', TRUE)
 ON CONFLICT (code) DO NOTHING;
