@@ -7,7 +7,9 @@ out/
 target/
 build/
 *.jar
+!backend/gradle/wrapper/gradle-wrapper.jar
 *.class
+.gradle/
 
 # Python
 __pycache__/
