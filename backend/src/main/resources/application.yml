@@ -3,8 +3,8 @@ spring:
     name: helpdesk-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/helpdesk
-    username: helpdesk
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:helpdesk}
+    username: ${DB_USER:helpdesk}
     password: ${DB_PASSWORD:helpdesk123}
 
   jpa:
@@ -31,7 +31,7 @@ app:
     secret: ${JWT_SECRET:dev-only-secret-do-not-use-in-prod-please-change}
     access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:60}
   ml:
-    base-url: ${ML_SERVICE_BASE_URL:http://localhost:8000}
+    base-url: ${ML_SERVICE_BASE_URL:http://localhost:8001}
     internal-secret: ${ML_INTERNAL_SECRET:dev-only-ml-secret}
     # ML-008: вызов не должен быть частью транзакции создания заявки —
     # используем отдельный short timeout, чтобы не блокировать пользователя.
@@ -46,8 +46,11 @@ logging:
 management:
   endpoints:
     web:
+      # /health вместо /actuator/health — его дёргают Docker healthcheck и деплой
+      base-path: /
       exposure:
-        include: health,info,metrics,env,loggers,mappings
+        # env/mappings/loggers раскрывают конфигурацию — наружу не публикуем
+        include: health,info
   endpoint:
     health:
-      show-details: always
+      show-details: ${HEALTH_SHOW_DETAILS:always}
