@@ -20,6 +20,8 @@ services:
     build: ./backend
     environment:
       DB_HOST: postgres
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,6 +31,8 @@ services:
 
   frontend:
     build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
 
 volumes:
   pgdata:

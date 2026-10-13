@@ -120,7 +120,6 @@ jobs:
       DB_PASSWORD: ci
       JWT_SECRET: ci
       ML_INTERNAL_SECRET: ci
-      DB_NETWORK: ci
     steps:
       - uses: actions/checkout@v4
       - name: Validate local stack

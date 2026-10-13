@@ -39,7 +39,7 @@ ps: ## статус сервисов
 
 config: env ## проверить local- и prod-конфигурацию compose
 	$(COMPOSE) config -q && echo "local: ok"
-	DB_NETWORK=$${DB_NETWORK:-check} $(COMPOSE_PROD) config -q && echo "prod: ok"
+	$(COMPOSE_PROD) config -q && echo "prod: ok"
 
 prod-config: ## итоговый prod-конфиг (нужен заполненный .env)
 	$(COMPOSE_PROD) config

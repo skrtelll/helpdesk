@@ -70,7 +70,7 @@ jobs:
       - name: Load config
         run: |
           set -a; . deploy/prod.env; set +a
-          for name in DB_HOST DB_NETWORK DB_NAME DB_USER DB_PORT BACKEND_PORT FRONTEND_PORT DEPLOY_DIR; do
+          for name in DB_HOST DB_NAME DB_USER DB_PORT DEPLOY_DIR; do
             value="${!name}"
             if [ -z "$value" ] || [ "$value" = "CHANGE_ME" ]; then
               echo "::error file=deploy/prod.env::$name не задан"

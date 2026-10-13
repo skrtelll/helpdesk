@@ -1,10 +1,21 @@
 services:
   backend:
     networks:
-      - default
-      - db
+      default:
+      db:
+      edge:
+        aliases:
+          - helpdesk-backend
+
+  frontend:
+    networks:
+      default:
+      edge:
+        aliases:
+          - helpdesk-frontend
 
 networks:
   db:
     external: true
-    name: ${DB_NETWORK:?DB_NETWORK is required}
+  edge:
+    external: true

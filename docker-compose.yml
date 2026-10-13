@@ -14,8 +14,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       ML_SERVICE_BASE_URL: http://ml-service:8001
       ML_INTERNAL_SECRET: ${ML_INTERNAL_SECRET:?ML_INTERNAL_SECRET is required}
-    ports:
-      - "${BACKEND_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
@@ -44,8 +42,6 @@ services:
   frontend:
     image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
     healthcheck:

@@ -37,12 +37,13 @@ ML Service наружу не публикуется — backend обращает
 
 | Файл | Назначение |
 |---|---|
-| `docker-compose.yml` | базовый состав: backend, ml-service, frontend (образы из GHCR) |
-| `docker-compose.local.yml` | локально: сборка из исходников + контейнер PostgreSQL |
-| `docker-compose.prod.yml` | сервер: подключение backend к docker-сети существующего PostgreSQL |
+| `docker-compose.yml` | базовый состав: backend, ml-service, frontend (образы из GHCR), порты не публикуются |
+| `docker-compose.local.yml` | локально: сборка из исходников, контейнер PostgreSQL, порты 8080 и 3000 |
+| `docker-compose.prod.yml` | сервер: подключение к внешним сетям `db` (PostgreSQL) и `edge` (Nginx Proxy Manager) |
 
 На сервере PostgreSQL не входит в проект — используется уже работающий инстанс
-(отличие от ТЗ, где `postgres-operational` описан как сервис compose).
+(отличие от ТЗ, где `postgres-operational` описан как сервис compose). Наружу сервисы
+публикует только Nginx Proxy Manager.
 
 ## CI/CD
 
@@ -55,7 +56,7 @@ ML Service наружу не публикуется — backend обращает
 ### Конфигурация прода
 
 Несекретные значения лежат в `deploy/prod.env` и меняются обычным PR. Перед первым деплоем
-заполнить `DB_HOST` и `DB_NETWORK` (сейчас `CHANGE_ME` — деплой с ними не запустится).
+заполнить `DB_HOST` (сейчас `CHANGE_ME` — деплой с ним не запустится).
 
 Секреты — Settings → Secrets and variables → Actions → **Secrets**. GitHub Variables не используются:
 репозиторий публичный, а их значения видны в логах Actions.
@@ -82,9 +83,15 @@ ML Service наружу не публикуется — backend обращает
    CREATE ROLE helpdesk LOGIN PASSWORD '...';
    CREATE DATABASE helpdesk OWNER helpdesk;
    ```
-3. Имена для `DB_HOST` и `DB_NETWORK` в `deploy/prod.env`: `docker ps` и
-   `docker inspect -f '{{json .NetworkSettings.Networks}}' <контейнер postgres>`.
-4. Порт PostgreSQL публикуется только на loopback сервера: `127.0.0.1:5432:5432`.
+3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `db` (`docker ps`).
+4. Внешние сети `db` и `edge` существуют (`docker network ls`).
+5. Порт PostgreSQL публикуется только на loopback сервера: `127.0.0.1:5432:5432`.
+6. Proxy hosts в Nginx Proxy Manager:
+
+   | Куда | Forward |
+   |---|---|
+   | домен фронтенда | `helpdesk-frontend:3000` |
+   | домен API или location `/api` | `helpdesk-backend:8080` |
 
 ### Доступ к БД на сервере
 
