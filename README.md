@@ -78,11 +78,27 @@ ML Service наружу не публикуется — backend обращает
 ### Подготовка сервера (один раз)
 
 1. Пользователь деплоя в группе `docker`, его публичный ключ — в `~/.ssh/authorized_keys`.
-2. База и роль в существующем PostgreSQL:
+2. База и роли в существующем PostgreSQL (инстанс общий с другими проектами):
+
+   | Роль | Права | Кто |
+   |---|---|---|
+   | `helpdesk_user` | владелец БД `helpdesk` | backend (Flyway) |
+   | `helpdesk_readonly` | только `SELECT` | люди через SSH-туннель |
+
    ```sql
    CREATE ROLE helpdesk_user LOGIN PASSWORD '...';
+   CREATE ROLE helpdesk_readonly LOGIN PASSWORD '...';
    CREATE DATABASE helpdesk OWNER helpdesk_user;
+   REVOKE CONNECT, TEMPORARY ON DATABASE helpdesk FROM PUBLIC;
+   GRANT CONNECT ON DATABASE helpdesk TO helpdesk_readonly;
+   \c helpdesk
+   GRANT USAGE ON SCHEMA public TO helpdesk_readonly;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO helpdesk_readonly;
+   ALTER DEFAULT PRIVILEGES FOR ROLE helpdesk_user IN SCHEMA public
+     GRANT SELECT ON TABLES TO helpdesk_readonly;
    ```
+
+   `DEFAULT PRIVILEGES` выдаёт `SELECT` на таблицы, которые Flyway создаст позже.
 3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `pg` (`docker ps`).
 4. Внешние сети `pg` и `edge` существуют (`docker network ls`).
 5. Порт PostgreSQL публикуется только на loopback сервера: `127.0.0.1:5432:5432`.
@@ -101,7 +117,8 @@ ML Service наружу не публикуется — backend обращает
 ssh -N -L 5433:127.0.0.1:5432 <user>@<server>
 ```
 
-Затем в DBeaver / psql: `localhost:5433`. Доступ выдаётся и отзывается SSH-ключом.
+Затем в DBeaver / psql: `localhost:5433`, БД `helpdesk`, роль `helpdesk_readonly`.
+Доступ выдаётся и отзывается SSH-ключом; пароль `helpdesk_user` людям не раздаётся.
 
 ### Откат
 
