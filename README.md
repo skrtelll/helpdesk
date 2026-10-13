@@ -101,7 +101,12 @@ ML Service наружу не публикуется — backend обращает
    `DEFAULT PRIVILEGES` выдаёт `SELECT` на таблицы, которые Flyway создаст позже.
 3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `pg` (`docker ps`).
 4. Внешние сети `pg` и `edge` существуют (`docker network ls`).
-5. Порт PostgreSQL публикуется только на loopback сервера: `127.0.0.1:5432:5432`.
+5. Доступ к `main_postgres` с loopback сервера (порт `5432` хоста занят другим PostgreSQL):
+   ```bash
+   docker run -d --name main_postgres_tunnel --restart unless-stopped \
+     --network pg -p 127.0.0.1:15432:5432 \
+     alpine/socat tcp-listen:5432,fork,reuseaddr tcp-connect:main_postgres:5432
+   ```
 6. Proxy hosts в Nginx Proxy Manager:
 
    | Куда | Forward |
@@ -114,7 +119,7 @@ ML Service наружу не публикуется — backend обращает
 БД наружу не открыта, подключение — через SSH-туннель:
 
 ```bash
-ssh -N -L 5433:127.0.0.1:5432 <user>@<server>
+ssh -N -L 5433:127.0.0.1:15432 <user>@<server>
 ```
 
 Затем в DBeaver / psql: `localhost:5433`, БД `helpdesk`, роль `helpdesk_readonly`.
