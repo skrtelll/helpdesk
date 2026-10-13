@@ -2,7 +2,7 @@ services:
   backend:
     networks:
       default:
-      db:
+      pg:
       edge:
         aliases:
           - helpdesk-backend
@@ -15,7 +15,7 @@ services:
           - helpdesk-frontend
 
 networks:
-  db:
+  pg:
     external: true
   edge:
     external: true

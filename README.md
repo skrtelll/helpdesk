@@ -39,7 +39,7 @@ ML Service наружу не публикуется — backend обращает
 |---|---|
 | `docker-compose.yml` | базовый состав: backend, ml-service, frontend (образы из GHCR), порты не публикуются |
 | `docker-compose.local.yml` | локально: сборка из исходников, контейнер PostgreSQL, порты 8080 и 3000 |
-| `docker-compose.prod.yml` | сервер: подключение к внешним сетям `db` (PostgreSQL) и `edge` (Nginx Proxy Manager) |
+| `docker-compose.prod.yml` | сервер: подключение к внешним сетям `pg` (PostgreSQL) и `edge` (Nginx Proxy Manager) |
 
 На сервере PostgreSQL не входит в проект — используется уже работающий инстанс
 (отличие от ТЗ, где `postgres-operational` описан как сервис compose). Наружу сервисы
@@ -55,8 +55,8 @@ ML Service наружу не публикуется — backend обращает
 
 ### Конфигурация прода
 
-Несекретные значения лежат в `deploy/prod.env` и меняются обычным PR. Перед первым деплоем
-заполнить `DB_HOST` (сейчас `CHANGE_ME` — деплой с ним не запустится).
+Несекретные значения лежат в `deploy/prod.env` и меняются обычным PR. Значение `CHANGE_ME`
+останавливает деплой с ошибкой.
 
 Секреты — Settings → Secrets and variables → Actions → **Secrets**. GitHub Variables не используются:
 репозиторий публичный, а их значения видны в логах Actions.
@@ -66,7 +66,7 @@ ML Service наружу не публикуется — backend обращает
 | `SSH_HOST`, `SSH_PORT`, `SSH_USER` | адрес сервера, порт (по умолчанию `22`), пользователь деплоя |
 | `SSH_PRIVATE_KEY` | приватный ключ пользователя деплоя |
 | `SSH_KNOWN_HOSTS` | строка из `ssh-keyscan -p <port> <host>`, проверенная вручную |
-| `DB_PASSWORD` | пароль роли `helpdesk` в PostgreSQL |
+| `DB_PASSWORD` | пароль роли `helpdesk_user` в PostgreSQL |
 | `JWT_SECRET` | `openssl rand -base64 48` |
 | `ML_INTERNAL_SECRET` | `openssl rand -base64 48` |
 | `TELEGRAM_TOKEN` | токен бота |
@@ -80,11 +80,11 @@ ML Service наружу не публикуется — backend обращает
 1. Пользователь деплоя в группе `docker`, его публичный ключ — в `~/.ssh/authorized_keys`.
 2. База и роль в существующем PostgreSQL:
    ```sql
-   CREATE ROLE helpdesk LOGIN PASSWORD '...';
-   CREATE DATABASE helpdesk OWNER helpdesk;
+   CREATE ROLE helpdesk_user LOGIN PASSWORD '...';
+   CREATE DATABASE helpdesk OWNER helpdesk_user;
    ```
-3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `db` (`docker ps`).
-4. Внешние сети `db` и `edge` существуют (`docker network ls`).
+3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `pg` (`docker ps`).
+4. Внешние сети `pg` и `edge` существуют (`docker network ls`).
 5. Порт PostgreSQL публикуется только на loopback сервера: `127.0.0.1:5432:5432`.
 6. Proxy hosts в Nginx Proxy Manager:
 
