@@ -1,0 +1,44 @@
+name: Notify Telegram
+description: Сообщение о провале workflow в Telegram (Bot API, без сторонних action)
+
+inputs:
+  title:
+    description: Заголовок сообщения
+    required: true
+  token:
+    description: Токен бота (secrets.TELEGRAM_TOKEN)
+    required: true
+  chat-id:
+    description: Чат или канал (secrets.TELEGRAM_TO)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Send message
+      shell: bash
+      env:
+        TG_TOKEN: ${{ inputs.token }}
+        TG_CHAT: ${{ inputs.chat-id }}
+        TITLE: ${{ inputs.title }}
+        REPO: ${{ github.repository }}
+        BRANCH: ${{ github.head_ref || github.ref_name }}
+        ACTOR: ${{ github.actor }}
+        SHA: ${{ github.sha }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then
+          echo "::warning::TELEGRAM_TOKEN/TELEGRAM_TO не заданы — уведомление пропущено"
+          exit 0
+        fi
+        text="❌ ${TITLE}
+        Репозиторий: ${REPO}
+        Ветка: ${BRANCH}
+        Автор: ${ACTOR}
+        Коммит: ${SHA::7}
+        ${RUN_URL}"
+        curl -sS --fail-with-body \
+          "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+          --data-urlencode "chat_id=${TG_CHAT}" \
+          --data-urlencode "text=${text}" \
+          --data-urlencode "disable_web_page_preview=true"
