@@ -1,0 +1,10 @@
+services:
+  backend:
+    networks:
+      - default
+      - db
+
+networks:
+  db:
+    external: true
+    name: ${DB_NETWORK:?DB_NETWORK is required}
