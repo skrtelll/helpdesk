@@ -88,7 +88,7 @@ class SchemaAndEntitiesIT {
         em.clear()
 
         val loaded = tickets.findById(saved.id!!).orElseThrow()
-        assertThat(loaded.number).startsWith("TCK-")
+        assertThat(loaded.number).startsWith("HD-")
         assertThat(loaded.status).isEqualTo(TicketStatus.NEW)
         assertThat(loaded.createdAt).isNotNull()
         assertThat(loaded.version).isZero()

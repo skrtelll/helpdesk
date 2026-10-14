@@ -1,0 +1,53 @@
+name: helpdesk
+
+services:
+  backend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: ${DB_HOST:?DB_HOST is required}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-helpdesk}
+      DB_USER: ${DB_USER:-helpdesk}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      ML_SERVICE_BASE_URL: http://ml-service:8001
+      ML_INTERNAL_SECRET: ${ML_INTERNAL_SECRET:?ML_INTERNAL_SECRET is required}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  ml-service:
+    image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-ml-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      ML_INTERNAL_SECRET: ${ML_INTERNAL_SECRET:?ML_INTERNAL_SECRET is required}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

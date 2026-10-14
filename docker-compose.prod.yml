@@ -1,0 +1,21 @@
+services:
+  backend:
+    networks:
+      default:
+      pg:
+      edge:
+        aliases:
+          - helpdesk-backend
+
+  frontend:
+    networks:
+      default:
+      edge:
+        aliases:
+          - helpdesk-frontend
+
+networks:
+  pg:
+    external: true
+  edge:
+    external: true
