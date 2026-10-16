@@ -43,16 +43,6 @@ CREATE TABLE tickets (
                  CHECK (status IN ('NEW', 'IN_PROGRESS', 'WAITING_FOR_USER', 'RESOLVED', 'CLOSED', 'CANCELLED')),
     priority     VARCHAR(20)   NOT NULL DEFAULT 'MEDIUM'
                  CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
-
-    -- предсказание ML хранится отдельно от итоговых category/priority
-    ml_category_id         UUID REFERENCES categories (id),
-    ml_category_confidence NUMERIC(5, 4) CHECK (ml_category_confidence IS NULL OR ml_category_confidence BETWEEN 0 AND 1),
-    ml_priority            VARCHAR(20) CHECK (ml_priority IS NULL OR ml_priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
-    ml_priority_confidence NUMERIC(5, 4) CHECK (ml_priority_confidence IS NULL OR ml_priority_confidence BETWEEN 0 AND 1),
-    ml_model_version       VARCHAR(100),
-    ml_prediction_status   VARCHAR(20) NOT NULL DEFAULT 'PENDING'
-                           CHECK (ml_prediction_status IN ('PENDING', 'SUCCESS', 'FAILED')),
-
     created_at   TIMESTAMPTZ   NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ   NOT NULL DEFAULT now(),
     resolved_at  TIMESTAMPTZ,
@@ -71,16 +61,7 @@ CREATE TABLE tickets (
     -- статус должен соответствовать заполненным меткам
     CHECK (status <> 'RESOLVED'  OR resolved_at IS NOT NULL),
     CHECK (status <> 'CLOSED'    OR (resolved_at IS NOT NULL AND closed_at IS NOT NULL)),
-    CHECK (status <> 'CANCELLED' OR cancelled_at IS NOT NULL),
-
-    -- при SUCCESS все ML-поля заполнены
-    CHECK (ml_prediction_status <> 'SUCCESS' OR (
-              ml_category_id IS NOT NULL
-          AND ml_category_confidence IS NOT NULL
-          AND ml_priority IS NOT NULL
-          AND ml_priority_confidence IS NOT NULL
-          AND ml_model_version IS NOT NULL
-    ))
+    CHECK (status <> 'CANCELLED' OR cancelled_at IS NOT NULL)
 );
 
 -- основные сценарии: список своих заявок, очередь поддержки, фильтры
@@ -110,8 +91,6 @@ CREATE TABLE ticket_history (
     changed_by UUID        REFERENCES users (id), -- NULL для системных событий
     event_type VARCHAR(50) NOT NULL CHECK (event_type IN (
         'TICKET_CREATED',
-        'ML_PREDICTION_APPLIED',
-        'ML_PREDICTION_FAILED',
         'STATUS_CHANGED',
         'PRIORITY_CHANGED',
         'CATEGORY_CHANGED',
