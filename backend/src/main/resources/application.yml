@@ -30,12 +30,7 @@ app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-do-not-use-in-prod-please-change}
     access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:60}
-  ml:
-    base-url: ${ML_SERVICE_BASE_URL:http://localhost:8000}
-    internal-secret: ${ML_INTERNAL_SECRET:dev-only-ml-secret}
-    # ML-008: вызов не должен быть частью транзакции создания заявки —
-    # используем отдельный short timeout, чтобы не блокировать пользователя.
-    request-timeout-ms: 2000
+  
 
 logging:
   level:

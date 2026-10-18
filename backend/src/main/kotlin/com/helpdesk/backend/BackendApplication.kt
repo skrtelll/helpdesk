@@ -7,7 +7,7 @@ import org.springframework.boot.runApplication
  * HelpDesk backend — точка входа.
  *
  * Архитектура: Controller -> Service -> Repository (см. ТЗ, п.11).
- * Пакеты организованы по доменам: user, category, ticket, comment, history, ml.
+ * Пакеты организованы по доменам: user, category, ticket, comment, history
  */
 @SpringBootApplication
 class BackendApplication

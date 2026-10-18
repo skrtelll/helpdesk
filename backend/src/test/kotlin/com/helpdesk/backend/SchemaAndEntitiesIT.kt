@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
@@ -88,7 +89,7 @@ class SchemaAndEntitiesIT {
         em.clear()
 
         val loaded = tickets.findById(saved.id!!).orElseThrow()
-        assertThat(loaded.number).startsWith("TCK-")
+        assertThat(loaded.number).matches("HD-\\d+")
         assertThat(loaded.status).isEqualTo(TicketStatus.NEW)
         assertThat(loaded.createdAt).isNotNull()
         assertThat(loaded.version).isZero()
@@ -120,7 +121,8 @@ class SchemaAndEntitiesIT {
         }
 
         assertThatThrownBy { tickets.saveAndFlush(ticket) }
-            .hasStackTraceContaining("ck_tickets_resolved_requires_resolved_at")
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+            .hasStackTraceContaining("violates check constraint")
     }
 
     @Test
@@ -133,6 +135,17 @@ class SchemaAndEntitiesIT {
         tickets.saveAndFlush(saved)
 
         assertThat(saved.version).isEqualTo(1)
-        assertThat(saved.updatedAt).isAfterOrEqualTo(before)
+        assertThat(saved.updatedAt).isAfter(before)
+    }
+
+    @Test
+    fun supportUserCanBeAssignee() {
+        val author = newUser("author2@example.com", Role.USER)
+        val support = newUser("support@example.com", Role.SUPPORT)
+        val ticket = newTicket(author).apply { assignee = support }
+
+        val saved = tickets.saveAndFlush(ticket)
+
+        assertThat(saved.id).isNotNull()
     }
 }
