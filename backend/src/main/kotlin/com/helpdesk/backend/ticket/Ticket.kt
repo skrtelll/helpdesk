@@ -15,6 +15,7 @@ import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.Version
 import org.hibernate.annotations.Generated
+import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.generator.EventType
 import java.time.Instant
 import java.util.UUID
@@ -26,7 +27,7 @@ class Ticket {
     @GeneratedValue(strategy = GenerationType.UUID)
     var id: UUID? = null
 
-    /** Человекочитаемый номер (HD-1001). Генерируется БД (DEFAULT из последовательности). */
+    /** Человекочитаемый номер (HD-1000, HD-1001, ...). Генерируется БД (DEFAULT из sequence). */
     @Generated(event = [EventType.INSERT])
     @Column(nullable = false, length = 30, insertable = false, updatable = false)
     var number: String? = null
@@ -35,12 +36,13 @@ class Ticket {
     @JoinColumn(name = "author_id", nullable = false, updatable = false)
     lateinit var author: User
 
-    /** Только SUPPORT/ADMIN — проверяется триггером trg_tickets_assignee_role. */
+    /** Менять только через [assignTo]: правило «исполнитель — SUPPORT/ADMIN» живёт в сервисном слое, не в БД. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
     var assignee: User? = null
+        private set
 
-    /** Категория заявки. По умолчанию OTHER, меняется сотрудником поддержки. */
+    /** Категория заявки. При создании OTHER, меняется сотрудником поддержки. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     lateinit var category: Category
@@ -55,7 +57,7 @@ class Ticket {
     @Column(nullable = false, length = 30)
     var status: TicketStatus = TicketStatus.NEW
 
-    /** Приоритет. По умолчанию MEDIUM, меняется сотрудником поддержки. */
+    /** Приоритет. При создании MEDIUM, меняется сотрудником поддержки. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     var priority: Priority = Priority.MEDIUM
@@ -75,12 +77,21 @@ class Ticket {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     var createdAt: Instant? = null
 
-    @Generated(event = [EventType.INSERT, EventType.UPDATE])
-    @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
+    /** Обновляется приложением при каждом изменении (триггеров в БД нет) — нужно для инкрементальной выгрузки в аналитику. */
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant? = null
 
-    /** Optimistic locking (BR-015). При конфликте Hibernate бросает OptimisticLockException -> 409. */
+    /** Optimistic locking. При конфликте Hibernate бросает OptimisticLockException -> 409 VERSION_CONFLICT. */
     @Version
     @Column(nullable = false)
     var version: Long = 0
+
+    /** Назначить исполнителя. Допустимы только SUPPORT и ADMIN; null снимает назначение. */
+    fun assignTo(user: User?) {
+        require(user == null || user.role.isStaff()) {
+            "Исполнителем заявки может быть только SUPPORT или ADMIN"
+        }
+        assignee = user
+    }
 }
