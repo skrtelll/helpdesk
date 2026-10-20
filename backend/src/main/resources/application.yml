@@ -53,4 +53,4 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: ${HEALTH_SHOW_DETAILS:always}
+      show-details: ${HEALTH_SHOW_DETAILS:never}
