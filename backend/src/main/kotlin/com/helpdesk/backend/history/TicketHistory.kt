@@ -30,7 +30,7 @@ class TicketHistory {
     @JoinColumn(name = "ticket_id", nullable = false, updatable = false)
     lateinit var ticket: Ticket
 
-    /** NULL для системных событий (например, ML fallback). */
+    /** NULL для системных событий. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "changed_by", updatable = false)
     var changedBy: User? = null

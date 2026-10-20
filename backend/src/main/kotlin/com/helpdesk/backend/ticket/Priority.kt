@@ -1,6 +1,6 @@
 package com.helpdesk.backend.ticket
 
-/** Приоритеты. Совпадают с CHECK ck_tickets_priority / ck_tickets_ml_priority. */
+/** Приоритеты. Совпадают с CHECK по priority в V1__init_schema.sql. */
 enum class Priority {
     LOW,
     MEDIUM,

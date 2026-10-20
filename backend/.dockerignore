@@ -2,6 +2,11 @@ build/
 .gradle/
 .idea/
 *.iml
+.idea/
+*.iml
 *.log
+Dockerfile
+.dockerignore
+
 Dockerfile
 .dockerignore
