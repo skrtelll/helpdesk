@@ -40,7 +40,6 @@ class Ticket {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignee_id")
     var assignee: User? = null
-        private set
 
     /** Категория заявки. При создании OTHER, меняется сотрудником поддержки. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
