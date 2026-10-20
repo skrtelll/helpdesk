@@ -1,6 +1,8 @@
 package com.helpdesk.backend
 
 import com.helpdesk.backend.category.CategoryRepository
+import com.helpdesk.backend.security.RefreshToken
+import com.helpdesk.backend.security.RefreshTokenRepository
 import com.helpdesk.backend.ticket.Ticket
 import com.helpdesk.backend.ticket.TicketRepository
 import com.helpdesk.backend.ticket.TicketStatus
@@ -20,10 +22,13 @@ import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
- * Проверяет на реальном PostgreSQL: Flyway применяет миграции, Hibernate (ddl-auto=validate)
- * принимает сущности, а триггеры и CHECK из V1 работают.
+ * Проверяет на реальном PostgreSQL: Flyway применяет V1–V3, Hibernate (ddl-auto=validate)
+ * принимает сущности, ограничения схемы работают, а правила, вынесенные из БД в код
+ * (роль исполнителя, updated_at), выполняются приложением.
  */
 @DataJpaTest
 @Testcontainers
@@ -52,6 +57,9 @@ class SchemaAndEntitiesIT {
 
     @Autowired
     lateinit var tickets: TicketRepository
+
+    @Autowired
+    lateinit var refreshTokens: RefreshTokenRepository
 
     @Autowired
     lateinit var em: EntityManager
@@ -99,18 +107,7 @@ class SchemaAndEntitiesIT {
     fun emailIsUniqueIgnoringCase() {
         newUser("Same@Example.com", Role.USER)
         assertThatThrownBy { newUser("same@example.com", Role.USER) }
-            .isInstanceOf(Exception::class.java)
-    }
-
-    @Test
-    fun assigneeMustBeSupportOrAdmin() {
-        val author = newUser("author@example.com", Role.USER)
-        val ticket = newTicket(author).apply {
-            assignee = author // USER — недопустим
-        }
-
-        assertThatThrownBy { tickets.saveAndFlush(ticket) }
-            .hasStackTraceContaining("must reference a user with role SUPPORT or ADMIN")
+            .isInstanceOf(DataIntegrityViolationException::class.java)
     }
 
     @Test
@@ -125,11 +122,36 @@ class SchemaAndEntitiesIT {
             .hasStackTraceContaining("violates check constraint")
     }
 
+    // Правило «исполнитель — SUPPORT/ADMIN» проверяется в коде (в БД триггера нет).
+    @Test
+    fun assigneeMustBeSupportOrAdmin() {
+        val author = newUser("author@example.com", Role.USER)
+        val ticket = newTicket(author)
+
+        assertThatThrownBy { ticket.assignTo(author) } // USER — недопустим
+            .isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(ticket.assignee).isNull()
+    }
+
+    @Test
+    fun supportUserCanBeAssignee() {
+        val author = newUser("author2@example.com", Role.USER)
+        val support = newUser("support@example.com", Role.SUPPORT)
+        val ticket = newTicket(author).apply { assignTo(support) }
+
+        val saved = tickets.saveAndFlush(ticket)
+
+        assertThat(saved.id).isNotNull()
+        assertThat(saved.assignee).isEqualTo(support)
+    }
+
+    // updated_at обновляет приложение (@UpdateTimestamp): на нём построена инкрементальная выгрузка.
     @Test
     fun updatingTicketBumpsVersionAndUpdatedAt() {
         val author = newUser("a3@example.com", Role.USER)
         val saved = tickets.saveAndFlush(newTicket(author))
-        val before = saved.updatedAt
+        val before = saved.updatedAt!!
+        Thread.sleep(5)
 
         saved.title = "Новый заголовок"
         tickets.saveAndFlush(saved)
@@ -139,13 +161,38 @@ class SchemaAndEntitiesIT {
     }
 
     @Test
-    fun supportUserCanBeAssignee() {
-        val author = newUser("author2@example.com", Role.USER)
-        val support = newUser("support@example.com", Role.SUPPORT)
-        val ticket = newTicket(author).apply { assignee = support }
+    fun refreshTokenCanBeSavedAndFoundByHash() {
+        val owner = newUser("rt@example.com", Role.USER)
+        val hash = "a".repeat(64)
+        val token = RefreshToken().apply {
+            user = owner
+            tokenHash = hash
+            expiresAt = Instant.now().plus(7, ChronoUnit.DAYS)
+        }
+        refreshTokens.saveAndFlush(token)
+        em.clear()
 
-        val saved = tickets.saveAndFlush(ticket)
+        val loaded = refreshTokens.findByTokenHash(hash)
 
-        assertThat(saved.id).isNotNull()
+        assertThat(loaded).isNotNull()
+        assertThat(loaded!!.isActive()).isTrue()
+        assertThat(loaded.createdAt).isNotNull()
+    }
+
+    @Test
+    fun revokedRefreshTokenIsNotActive() {
+        val owner = newUser("rt2@example.com", Role.USER)
+        val token = RefreshToken().apply {
+            user = owner
+            tokenHash = "b".repeat(64)
+            expiresAt = Instant.now().plus(7, ChronoUnit.DAYS)
+        }
+        refreshTokens.saveAndFlush(token)
+
+        token.revoke()
+        refreshTokens.saveAndFlush(token)
+
+        assertThat(token.isActive()).isFalse()
+        assertThat(refreshTokens.findByUserIdAndRevokedAtIsNull(owner.id!!)).isEmpty()
     }
 }
