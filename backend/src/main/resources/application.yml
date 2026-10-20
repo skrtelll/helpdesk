@@ -5,13 +5,13 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:helpdesk}
     username: ${DB_USER:helpdesk}
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:helpdesk}
-    username: ${DB_USER:helpdesk}
     password: ${DB_PASSWORD:helpdesk123}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
 
   jpa:
     hibernate:
-      # Схему целиком ведёт Flyway; Hibernate только валидирует соответствие.
+      # Схему ведёт Flyway; Hibernate только проверяет соответствие сущностей.
       ddl-auto: validate
     open-in-view: false
     properties:
@@ -32,31 +32,17 @@ app:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-do-not-use-in-prod-please-change}
     access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:60}
-  ml:
-    base-url: ${ML_SERVICE_BASE_URL:http://localhost:8001}
-    base-url: ${ML_SERVICE_BASE_URL:http://localhost:8001}
-    internal-secret: ${ML_INTERNAL_SECRET:dev-only-ml-secret}
-    # ML-008: вызов не должен быть частью транзакции создания заявки —
-    # используем отдельный short timeout, чтобы не блокировать пользователя.
-    request-timeout-ms: 2000
 
 logging:
   level:
     com.helpdesk.backend: DEBUG
     org.hibernate.SQL: DEBUG
-    org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping: TRACE
 
 management:
   endpoints:
     web:
-      # /health вместо /actuator/health — его дёргают Docker healthcheck и деплой
-      base-path: /
-      # /health вместо /actuator/health — его дёргают Docker healthcheck и деплой
       base-path: /
       exposure:
-        # env/mappings/loggers раскрывают конфигурацию — наружу не публикуем
-        include: health,info
-        # env/mappings/loggers раскрывают конфигурацию — наружу не публикуем
         include: health,info
   endpoint:
     health:
