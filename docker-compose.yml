@@ -1,9 +1,16 @@
 name: helpdesk
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   backend:
     image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: ${DB_HOST:?DB_HOST is required}
@@ -24,6 +31,7 @@ services:
   ml-service:
     image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-ml-service:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     environment:
       ML_INTERNAL_SECRET: ${ML_INTERNAL_SECRET:?ML_INTERNAL_SECRET is required}
     healthcheck:
@@ -42,6 +50,7 @@ services:
   frontend:
     image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - backend
     healthcheck:
