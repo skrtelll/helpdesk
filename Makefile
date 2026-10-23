@@ -1,14 +1,15 @@
 COMPOSE      := docker compose -f docker-compose.yml -f docker-compose.local.yml
 COMPOSE_ALL  := $(COMPOSE) --profile airflow
+COMPOSE_TEST := $(COMPOSE) -f docker-compose.test.yml
 COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 GRADLE_IMAGE := eclipse-temurin:21-jdk
 s ?=
 
 .DEFAULT_GOAL := help
-.PHONY: help env up airflow airflow-down down restart build rebuild logs ps config prod-config test psql sh clean
+.PHONY: help env up airflow airflow-down down restart build rebuild logs ps config prod-config test test-e2e loadtest test-down psql sh clean
 
 help: ## список команд
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 env: ## создать .env из шаблона со сгенерированными секретами
 	@if [ -f .env ]; then echo ".env уже есть"; exit 0; fi; \
@@ -60,6 +61,19 @@ test: ## тесты backend в контейнере JDK 21 (Testcontainers)
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
 		-w /src $(GRADLE_IMAGE) ./gradlew test --no-daemon --console=plain
+
+test-e2e: env ## smoke-тест изолированного стека (k6)
+	@mkdir -p loadtest/results && chmod 777 loadtest/results
+	$(COMPOSE_TEST) up -d --build --wait --wait-timeout 300
+	$(COMPOSE_TEST) run --rm k6 run /scripts/smoke.js; rc=$$?; $(COMPOSE_TEST) --profile k6 down -v; exit $$rc
+
+loadtest: env ## нагрузочный тест: make loadtest VUS=50 DURATION=5m API_PREFIX=/api/v1
+	@mkdir -p loadtest/results && chmod 777 loadtest/results
+	$(COMPOSE_TEST) up -d --build --wait --wait-timeout 300
+	$(COMPOSE_TEST) run --rm k6 run /scripts/load.js; rc=$$?; $(COMPOSE_TEST) --profile k6 down -v; exit $$rc
+
+test-down: ## остановить тестовый стек
+	$(COMPOSE_TEST) --profile k6 down -v --remove-orphans
 
 psql: ## консоль локальной БД
 	$(COMPOSE) exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
