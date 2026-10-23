@@ -218,7 +218,7 @@ jobs:
         e2e-smoke,
         compose-validate,
       ]
-    if: failure() && inputs.notify != false
+    if: failure() && toJSON(inputs.notify) != 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
