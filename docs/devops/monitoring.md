@@ -80,7 +80,6 @@ groups:
       - alert: HelpdeskContainerMissing
         expr: |
           absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="backend"})
-          or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="ml-service"})
           or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="frontend"})
           or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="airflow-apiserver"})
           or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="airflow-scheduler"})
@@ -265,5 +264,5 @@ groups:
 1. `docker network inspect monitoring`: в сети есть контейнер `helpdesk-backend-1`.
 2. Prometheus → Status → Targets: `helpdesk-backend` в состоянии `UP`.
 3. Grafana → Explore → Loki: `{project="helpdesk"}` показывает логи.
-4. `docker stop helpdesk-ml-service-1`: через 2–3 минуты в Telegram приходит
+4. `docker stop helpdesk-frontend-1`: через 2–3 минуты в Telegram приходит
    `HelpdeskContainerMissing`, после `docker start` приходит resolved.

@@ -14,7 +14,6 @@ env: ## создать .env из шаблона со сгенерированн�
 	@if [ -f .env ]; then echo ".env уже есть"; exit 0; fi; \
 	sed -e "s|^DB_PASSWORD=$$|DB_PASSWORD=$$(openssl rand -hex 16)|" \
 	    -e "s|^JWT_SECRET=$$|JWT_SECRET=$$(openssl rand -hex 32)|" \
-	    -e "s|^ML_INTERNAL_SECRET=$$|ML_INTERNAL_SECRET=$$(openssl rand -hex 32)|" \
 	    -e "s|^AIRFLOW_ADMIN_PASSWORD=$$|AIRFLOW_ADMIN_PASSWORD=$$(openssl rand -hex 12)|" \
 	    -e "s|^AIRFLOW_FERNET_KEY=$$|AIRFLOW_FERNET_KEY=$$(openssl rand -base64 32 | tr '+/' '-_')|" \
 	    -e "s|^AIRFLOW_SECRET_KEY=$$|AIRFLOW_SECRET_KEY=$$(openssl rand -hex 32)|" \

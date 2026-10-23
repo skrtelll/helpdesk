@@ -31,9 +31,6 @@ services:
       postgres:
         condition: service_healthy
 
-  ml-service:
-    build: ./ml-service
-
   frontend:
     build: ./frontend
     ports:

@@ -1,11 +1,10 @@
 # HelpDesk
 
-Учебная система технической поддержки с ML-классификацией заявок.
+Учебная система технической поддержки.
 
 | Каталог | Сервис | Стек |
 |---|---|---|
 | `backend/` | Main Backend, REST `/api/v1` | Kotlin, Spring Boot, PostgreSQL, Flyway |
-| `ml-service/` | ML Service (внутренний) | Python, FastAPI — пока заглушка |
 | `frontend/` | Web UI | Next.js, TypeScript — пока заглушка |
 | `airflow/` | ETL: DAG'и и образ Airflow | Apache Airflow 3, CeleryExecutor |
 | `backup/` | бэкапы PostgreSQL в MinIO (только сервер) | `pg_dump`, `rclone` |
@@ -24,7 +23,7 @@ make help     # все команды: logs, ps, test, psql, sh, clean, ...
 Без `make`:
 
 ```bash
-cp .env.example .env        # заполнить DB_PASSWORD, JWT_SECRET, ML_INTERNAL_SECRET
+cp .env.example .env        # заполнить DB_PASSWORD, JWT_SECRET
 docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
 
@@ -36,13 +35,11 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 | `localhost:5432` | PostgreSQL (только с этой машины) |
 | http://localhost:8081 | Airflow UI (`make airflow`), логин `admin`, пароль `AIRFLOW_ADMIN_PASSWORD` из `.env` |
 
-ML Service наружу не публикуется — backend обращается к нему по `http://ml-service:8001`.
-
 ## Compose-файлы
 
 | Файл | Назначение |
 |---|---|
-| `docker-compose.yml` | базовый состав: backend, ml-service, frontend и Airflow в профиле `airflow` (образы из GHCR), порты не публикуются |
+| `docker-compose.yml` | базовый состав: backend, frontend и Airflow в профиле `airflow` (образы из GHCR), порты не публикуются |
 | `docker-compose.local.yml` | локально: сборка из исходников, контейнеры PostgreSQL для приложения и метабазы Airflow, порты 8080, 3000 и 8081 |
 | `docker-compose.prod.yml` | сервер: внешние сети `pg` (PostgreSQL), `edge` (Nginx Proxy Manager), `monitoring` (Prometheus), `s3` (MinIO) и сервис бэкапов |
 
@@ -76,7 +73,6 @@ Airflow поднимается, только если включён профи�
 | `SSH_KNOWN_HOSTS` | строка из `ssh-keyscan -p <port> <host>`, проверенная вручную |
 | `DB_PASSWORD` | пароль роли `helpdesk_user` в PostgreSQL |
 | `JWT_SECRET` | `openssl rand -base64 48` |
-| `ML_INTERNAL_SECRET` | `openssl rand -base64 48` |
 | `TELEGRAM_TOKEN` | токен бота |
 | `TELEGRAM_TO` | id чата/канала |
 | `GHCR_PULL_TOKEN` | *необязательно*: PAT с `read:packages`, если пакеты GHCR приватные |
