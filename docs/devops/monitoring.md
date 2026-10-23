@@ -82,6 +82,10 @@ groups:
           absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="backend"})
           or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="ml-service"})
           or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="frontend"})
+          or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="airflow-apiserver"})
+          or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="airflow-scheduler"})
+          or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="airflow-worker"})
+          or absent(container_last_seen{container_label_com_docker_compose_project="helpdesk", container_label_com_docker_compose_service="db-backup"})
         for: 2m
         labels:
           project: helpdesk
@@ -223,6 +227,14 @@ groups:
           severity: warning
         annotations:
           summary: "Много ERROR в логах {{ $labels.service }}"
+
+      - alert: HelpdeskBackupFailed
+        expr: sum(count_over_time({project="helpdesk", service="db-backup"} |= "backup failed" [1h])) > 0
+        labels:
+          project: helpdesk
+          severity: critical
+        annotations:
+          summary: Бэкап БД helpdesk не снялся, см. логи db-backup
 ```
 
 ## Grafana
