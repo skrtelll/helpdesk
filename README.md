@@ -8,6 +8,7 @@
 | `frontend/` | Web UI | Next.js, TypeScript — пока заглушка |
 | `airflow/` | ETL: DAG'и и образ Airflow | Apache Airflow 3, CeleryExecutor |
 | `backup/` | бэкапы PostgreSQL в MinIO (только сервер) | `pg_dump`, `rclone` |
+| `loadtest/` | сценарии нагрузочного тестирования | k6 |
 | `docs/devops/` | документация по инфраструктуре | |
 
 ## Локальный запуск
@@ -17,6 +18,8 @@
 ```bash
 make up       # создаёт .env со сгенерированными секретами, собирает и поднимает стек
 make airflow  # то же вместе с Airflow
+make test     # интеграционные тесты backend (Testcontainers)
+make test-e2e # smoke-тест изолированного стека
 make help     # все команды: logs, ps, test, psql, sh, clean, ...
 ```
 
@@ -41,6 +44,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 |---|---|
 | `docker-compose.yml` | базовый состав: backend, frontend и Airflow в профиле `airflow` (образы из GHCR), порты не публикуются |
 | `docker-compose.local.yml` | локально: сборка из исходников, контейнеры PostgreSQL для приложения и метабазы Airflow, порты 8080, 3000 и 8081 |
+| `docker-compose.test.yml` | тесты: изолированный проект `helpdesk-test`, БД в `tmpfs`, k6 |
 | `docker-compose.prod.yml` | сервер: внешние сети `pg` (PostgreSQL), `edge` (Nginx Proxy Manager), `monitoring` (Prometheus), `s3` (MinIO) и сервис бэкапов |
 
 Airflow поднимается, только если включён профиль: `--profile airflow` или
@@ -53,7 +57,9 @@ Airflow поднимается, только если включён профи�
 ## CI/CD
 
 - **`ci.yml`** — PR в `main`/`develop` и push в `develop`. Запускаются только джобы
-  затронутых сервисов: тесты backend (Testcontainers), сборка Docker-образов, проверка compose-файлов.
+  затронутых сервисов: тесты backend (Testcontainers), сборка Docker-образов, проверка DAG'ов,
+  smoke-тест стека (k6), проверка compose-файлов. Подробнее — [docs/devops/testing.md](docs/devops/testing.md).
+- **`loadtest.yml`** — вручную: нагрузочный тест k6 на тестовом стеке в раннере.
 - **`deploy.yml`** — push в `main`: CI → сборка и публикация образов в GHCR
   (`ghcr.io/skrtelll/helpdesk-<service>:sha-<commit>` и `:latest`) → деплой по SSH.
 - При провале любой джобы приходит уведомление в Telegram; об успехе — нет.
