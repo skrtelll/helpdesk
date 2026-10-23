@@ -7,14 +7,18 @@
 | `backend/` | Main Backend, REST `/api/v1` | Kotlin, Spring Boot, PostgreSQL, Flyway |
 | `ml-service/` | ML Service (внутренний) | Python, FastAPI — пока заглушка |
 | `frontend/` | Web UI | Next.js, TypeScript — пока заглушка |
+| `airflow/` | ETL: DAG'и и образ Airflow | Apache Airflow 3, CeleryExecutor |
+| `backup/` | бэкапы PostgreSQL в MinIO (только сервер) | `pg_dump`, `rclone` |
+| `docs/devops/` | документация по инфраструктуре | |
 
 ## Локальный запуск
 
 Нужны Docker с Compose v2 и `make`. Java, Node и Python локально не нужны.
 
 ```bash
-make up      # создаёт .env со сгенерированными секретами, собирает и поднимает стек
-make help    # все команды: logs, ps, test, psql, sh, clean, ...
+make up       # создаёт .env со сгенерированными секретами, собирает и поднимает стек
+make airflow  # то же вместе с Airflow
+make help     # все команды: logs, ps, test, psql, sh, clean, ...
 ```
 
 Без `make`:
@@ -30,6 +34,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 | http://localhost:8080/health | backend healthcheck |
 | http://localhost:8080/swagger-ui.html | Swagger UI |
 | `localhost:5432` | PostgreSQL (только с этой машины) |
+| http://localhost:8081 | Airflow UI (`make airflow`), логин `admin`, пароль `AIRFLOW_ADMIN_PASSWORD` из `.env` |
 
 ML Service наружу не публикуется — backend обращается к нему по `http://ml-service:8001`.
 
@@ -37,9 +42,12 @@ ML Service наружу не публикуется — backend обращает
 
 | Файл | Назначение |
 |---|---|
-| `docker-compose.yml` | базовый состав: backend, ml-service, frontend (образы из GHCR), порты не публикуются |
-| `docker-compose.local.yml` | локально: сборка из исходников, контейнер PostgreSQL, порты 8080 и 3000 |
-| `docker-compose.prod.yml` | сервер: подключение к внешним сетям `pg` (PostgreSQL), `edge` (Nginx Proxy Manager) и `monitoring` (Prometheus) |
+| `docker-compose.yml` | базовый состав: backend, ml-service, frontend и Airflow в профиле `airflow` (образы из GHCR), порты не публикуются |
+| `docker-compose.local.yml` | локально: сборка из исходников, контейнеры PostgreSQL для приложения и метабазы Airflow, порты 8080, 3000 и 8081 |
+| `docker-compose.prod.yml` | сервер: внешние сети `pg` (PostgreSQL), `edge` (Nginx Proxy Manager), `monitoring` (Prometheus), `s3` (MinIO) и сервис бэкапов |
+
+Airflow поднимается, только если включён профиль: `--profile airflow` или
+`COMPOSE_PROFILES=airflow` в `.env`. На сервере профиль включён в `deploy/prod.env`.
 
 На сервере PostgreSQL не входит в проект — используется уже работающий инстанс
 (отличие от ТЗ, где `postgres-operational` описан как сервис compose). Наружу сервисы
@@ -72,6 +80,12 @@ ML Service наружу не публикуется — backend обращает
 | `TELEGRAM_TOKEN` | токен бота |
 | `TELEGRAM_TO` | id чата/канала |
 | `GHCR_PULL_TOKEN` | *необязательно*: PAT с `read:packages`, если пакеты GHCR приватные |
+| `ETL_DB_PASSWORD` | пароль роли `helpdesk_etl`, только `[A-Za-z0-9_-]` |
+| `AIRFLOW_DB_PASSWORD` | пароль роли `airflow_user`, только `[A-Za-z0-9_-]` |
+| `AIRFLOW_ADMIN_PASSWORD` | пароль `admin` в UI Airflow |
+| `AIRFLOW_FERNET_KEY` | `openssl rand -base64 32 \| tr '+/' '-_'`; после первого деплоя не менять |
+| `AIRFLOW_SECRET_KEY` | `openssl rand -hex 32` |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | пользователь MinIO `helpdesk-backup` |
 
 Секреты не должны содержать одинарную кавычку — деплой это проверяет.
 
@@ -84,6 +98,10 @@ ML Service наружу не публикуется — backend обращает
    |---|---|---|
    | `helpdesk_user` | владелец БД `helpdesk` | backend (Flyway) |
    | `helpdesk_readonly` | только `SELECT` | люди через SSH-туннель |
+   | `helpdesk_etl` | чтение `public`, владелец схемы `analytics` | Airflow |
+   | `airflow_user` | владелец БД `airflow` (метабаза) | Airflow |
+
+   `helpdesk_etl` и `airflow_user` создаются по [docs/devops/airflow.md](docs/devops/airflow.md).
 
    ```sql
    CREATE ROLE helpdesk_user LOGIN PASSWORD '...';
@@ -100,7 +118,7 @@ ML Service наружу не публикуется — backend обращает
 
    `DEFAULT PRIVILEGES` выдаёт `SELECT` на таблицы, которые Flyway создаст позже.
 3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `pg` (`docker ps`).
-4. Внешние сети `pg`, `edge` и `monitoring` существуют (`docker network ls`).
+4. Внешние сети `pg`, `edge`, `monitoring` и `s3` существуют (`docker network ls`).
 5. Доступ к `main_postgres` с loopback сервера (порт `5432` хоста занят другим PostgreSQL):
    ```bash
    docker run -d --name main_postgres_tunnel --restart unless-stopped \
@@ -115,7 +133,8 @@ ML Service наружу не публикуется — backend обращает
    | `/api` (Custom location) | `helpdesk-backend:8080` |
 
    На backend проксируется только `/api`, поэтому `/health`, `/prometheus` и Swagger
-   снаружи недоступны.
+   снаружи недоступны. Airflow UI — отдельный поддомен на `helpdesk-airflow:8080`.
+7. Бакет и пользователь MinIO для бэкапов — [docs/devops/backups.md](docs/devops/backups.md).
 
 ### Доступ к БД на сервере
 
@@ -131,7 +150,12 @@ ssh -N -L 5433:127.0.0.1:15432 <user>@<server>
 ### Мониторинг
 
 Метрики, логи и алерты собирает общий стек сервера (Prometheus, Alertmanager, Loki, Grafana).
-Что подключено со стороны HelpDesk и что добавить в общий стек — [docs/devops/monitoring.md](docs/devops/monitoring.md).
+Как HelpDesk подключён к стеку и какие правила и дашборды в нём есть — [docs/devops/monitoring.md](docs/devops/monitoring.md).
+
+### Airflow и бэкапы
+
+- [docs/devops/airflow.md](docs/devops/airflow.md): состав, подключения к БД, роли `airflow_user` и `helpdesk_etl`.
+- [docs/devops/backups.md](docs/devops/backups.md): бэкапы в MinIO, бэкап вручную, восстановление.
 
 ### Откат
 

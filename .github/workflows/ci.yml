@@ -24,6 +24,8 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       ml: ${{ steps.filter.outputs.ml }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      airflow: ${{ steps.filter.outputs.airflow }}
+      backup: ${{ steps.filter.outputs.backup }}
       compose: ${{ steps.filter.outputs.compose }}
     steps:
       - uses: actions/checkout@v4
@@ -40,8 +42,15 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/workflows/**'
+            airflow:
+              - 'airflow/**'
+              - '.github/workflows/**'
+            backup:
+              - 'backup/**'
+              - '.github/workflows/**'
             compose:
               - 'docker-compose*.yml'
+              - 'deploy/prod.env'
               - '.env.example'
               - '.github/workflows/**'
 
@@ -111,6 +120,49 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
+  airflow-image:
+    needs: changes
+    if: needs.changes.outputs.airflow == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: airflow
+          push: false
+          load: true
+          tags: helpdesk-airflow:ci
+          cache-from: type=gha,scope=airflow
+          cache-to: type=gha,scope=airflow,mode=max
+      - name: Check DAG imports
+        run: |
+          docker run --rm -i helpdesk-airflow:ci python - <<'PY'
+          from airflow.models.dagbag import DagBag
+
+          bag = DagBag("/opt/airflow/dags", include_examples=False)
+          print("DAGs:", sorted(bag.dag_ids))
+          for path, err in bag.import_errors.items():
+              print(f"::error::{path}: {err}")
+          raise SystemExit(1 if bag.import_errors else 0)
+          PY
+
+  backup-image:
+    needs: changes
+    if: needs.changes.outputs.backup == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck backup/backup.sh
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: backup
+          push: false
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,scope=backup,mode=max
+
   compose-validate:
     needs: changes
     if: needs.changes.outputs.compose == 'true'
@@ -123,9 +175,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate local stack
-        run: docker compose -f docker-compose.yml -f docker-compose.local.yml config -q
+        run: docker compose -f docker-compose.yml -f docker-compose.local.yml --profile airflow config -q
       - name: Validate prod stack
-        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+        run: |
+          set -a; . deploy/prod.env; set +a
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile airflow config -q
 
   notify-failure:
     needs:
@@ -135,6 +189,8 @@ jobs:
         backend-image,
         ml-image,
         frontend-image,
+        airflow-image,
+        backup-image,
         compose-validate,
       ]
     if: failure() && inputs.notify != false
