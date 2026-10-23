@@ -1,6 +1,6 @@
-FROM postgres:16-alpine
+FROM alpine:3.22
 
-RUN apk add --no-cache rclone
+RUN apk add --no-cache postgresql16-client rclone
 
 ENV RCLONE_CONFIG=/dev/null
 

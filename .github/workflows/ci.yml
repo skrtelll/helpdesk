@@ -22,11 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
-      ml: ${{ steps.filter.outputs.ml }}
       frontend: ${{ steps.filter.outputs.frontend }}
       airflow: ${{ steps.filter.outputs.airflow }}
       backup: ${{ steps.filter.outputs.backup }}
       compose: ${{ steps.filter.outputs.compose }}
+      e2e: ${{ steps.filter.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -36,9 +36,6 @@ jobs:
             backend:
               - 'backend/**'
               - '.github/workflows/**'
-            ml:
-              - 'ml-service/**'
-              - '.github/workflows/**'
             frontend:
               - 'frontend/**'
               - '.github/workflows/**'
@@ -47,6 +44,12 @@ jobs:
               - '.github/workflows/**'
             backup:
               - 'backup/**'
+              - '.github/workflows/**'
+            e2e:
+              - 'backend/**'
+              - 'frontend/**'
+              - 'loadtest/**'
+              - 'docker-compose*.yml'
               - '.github/workflows/**'
             compose:
               - 'docker-compose*.yml'
@@ -58,6 +61,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     defaults:
       run:
         working-directory: backend
@@ -70,6 +76,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Test
         run: ./gradlew test --no-daemon
+      - name: Test summary
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: backend/build/test-results/test/*.xml
+          check_name: backend tests
+          detailed_summary: true
+          include_passed: true
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v4
@@ -91,20 +105,6 @@ jobs:
           push: false
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
-
-  ml-image:
-    needs: changes
-    if: needs.changes.outputs.ml == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
-        with:
-          context: ml-service
-          push: false
-          cache-from: type=gha,scope=ml-service
-          cache-to: type=gha,scope=ml-service,mode=max
 
   frontend-image:
     needs: changes
@@ -163,6 +163,30 @@ jobs:
           cache-from: type=gha,scope=backup
           cache-to: type=gha,scope=backup,mode=max
 
+  e2e-smoke:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    env:
+      DB_HOST: postgres
+      DB_PASSWORD: ci-e2e
+      JWT_SECRET: ci-e2e-jwt-secret-at-least-32-bytes-long
+      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.test.yml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start test stack
+        run: $COMPOSE up -d --build --wait --wait-timeout 300
+      - name: Smoke test
+        run: |
+          mkdir -p loadtest/results && chmod 777 loadtest/results
+          $COMPOSE run --rm k6 run /scripts/smoke.js
+      - name: Stack logs
+        if: failure()
+        run: $COMPOSE logs --no-color --tail=300
+      - name: Stop test stack
+        if: always()
+        run: $COMPOSE --profile k6 down -v
+
   compose-validate:
     needs: changes
     if: needs.changes.outputs.compose == 'true'
@@ -171,11 +195,12 @@ jobs:
       DB_HOST: db
       DB_PASSWORD: ci
       JWT_SECRET: ci
-      ML_INTERNAL_SECRET: ci
     steps:
       - uses: actions/checkout@v4
       - name: Validate local stack
         run: docker compose -f docker-compose.yml -f docker-compose.local.yml --profile airflow config -q
+      - name: Validate test stack
+        run: docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.test.yml --profile k6 config -q
       - name: Validate prod stack
         run: |
           set -a; . deploy/prod.env; set +a
@@ -187,10 +212,10 @@ jobs:
         changes,
         backend-test,
         backend-image,
-        ml-image,
         frontend-image,
         airflow-image,
         backup-image,
+        e2e-smoke,
         compose-validate,
       ]
     if: failure() && inputs.notify != false

@@ -6,7 +6,7 @@
 
 | Что | Значение |
 |---|---|
-| Образ | `ghcr.io/skrtelll/helpdesk-backup`: `postgres:16-alpine` + `rclone` |
+| Образ | `ghcr.io/skrtelll/helpdesk-backup`: `alpine` + `postgresql16-client` + `rclone` |
 | Формат | `pg_dump -Fc` (custom, сжатый, восстанавливается через `pg_restore`) |
 | Куда | `s3://helpdesk-backups/helpdesk/helpdesk_<UTC-время>.dump` |
 | Роль | `helpdesk_user`, владелец БД |
