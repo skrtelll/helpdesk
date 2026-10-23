@@ -6,6 +6,9 @@ services:
       edge:
         aliases:
           - helpdesk-backend
+      monitoring:
+        aliases:
+          - helpdesk-backend
 
   frontend:
     networks:
@@ -18,4 +21,6 @@ networks:
   pg:
     external: true
   edge:
+    external: true
+  monitoring:
     external: true

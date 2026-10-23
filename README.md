@@ -39,7 +39,7 @@ ML Service наружу не публикуется — backend обращает
 |---|---|
 | `docker-compose.yml` | базовый состав: backend, ml-service, frontend (образы из GHCR), порты не публикуются |
 | `docker-compose.local.yml` | локально: сборка из исходников, контейнер PostgreSQL, порты 8080 и 3000 |
-| `docker-compose.prod.yml` | сервер: подключение к внешним сетям `pg` (PostgreSQL) и `edge` (Nginx Proxy Manager) |
+| `docker-compose.prod.yml` | сервер: подключение к внешним сетям `pg` (PostgreSQL), `edge` (Nginx Proxy Manager) и `monitoring` (Prometheus) |
 
 На сервере PostgreSQL не входит в проект — используется уже работающий инстанс
 (отличие от ТЗ, где `postgres-operational` описан как сервис compose). Наружу сервисы
@@ -100,19 +100,22 @@ ML Service наружу не публикуется — backend обращает
 
    `DEFAULT PRIVILEGES` выдаёт `SELECT` на таблицы, которые Flyway создаст позже.
 3. `DB_HOST` в `deploy/prod.env` — имя контейнера PostgreSQL в сети `pg` (`docker ps`).
-4. Внешние сети `pg` и `edge` существуют (`docker network ls`).
+4. Внешние сети `pg`, `edge` и `monitoring` существуют (`docker network ls`).
 5. Доступ к `main_postgres` с loopback сервера (порт `5432` хоста занят другим PostgreSQL):
    ```bash
    docker run -d --name main_postgres_tunnel --restart unless-stopped \
      --network pg -p 127.0.0.1:15432:5432 \
      alpine/socat tcp-listen:5432,fork,reuseaddr tcp-connect:main_postgres:5432
    ```
-6. Proxy hosts в Nginx Proxy Manager:
+6. Proxy host в Nginx Proxy Manager на домен проекта:
 
-   | Куда | Forward |
+   | Location | Forward |
    |---|---|
-   | домен фронтенда | `helpdesk-frontend:3000` |
-   | домен API или location `/api` | `helpdesk-backend:8080` |
+   | `/` | `helpdesk-frontend:3000` |
+   | `/api` (Custom location) | `helpdesk-backend:8080` |
+
+   На backend проксируется только `/api`, поэтому `/health`, `/prometheus` и Swagger
+   снаружи недоступны.
 
 ### Доступ к БД на сервере
 
@@ -124,6 +127,11 @@ ssh -N -L 5433:127.0.0.1:15432 <user>@<server>
 
 Затем в DBeaver / psql: `localhost:5433`, БД `helpdesk`, роль `helpdesk_readonly`.
 Доступ выдаётся и отзывается SSH-ключом; пароль `helpdesk_user` людям не раздаётся.
+
+### Мониторинг
+
+Метрики, логи и алерты собирает общий стек сервера (Prometheus, Alertmanager, Loki, Grafana).
+Что подключено со стороны HelpDesk и что добавить в общий стек — [docs/devops/monitoring.md](docs/devops/monitoring.md).
 
 ### Откат
 
