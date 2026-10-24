@@ -1,10 +1,8 @@
 package com.helpdesk.backend.history
 
-/** Типы событий аудита. Совпадают с CHECK ck_ticket_history_event_type. */
+/** Типы событий аудита. Совпадают с CHECK по event_type в V1__init_schema.sql. */
 enum class TicketEventType {
     TICKET_CREATED,
-    ML_PREDICTION_APPLIED,
-    ML_PREDICTION_FAILED,
     STATUS_CHANGED,
     PRIORITY_CHANGED,
     CATEGORY_CHANGED,

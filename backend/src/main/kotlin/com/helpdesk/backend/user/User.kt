@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.annotations.Generated
+import org.hibernate.annotations.UpdateTimestamp
 import org.hibernate.generator.EventType
 import java.time.Instant
 import java.util.UUID
@@ -44,8 +45,8 @@ class User {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     var createdAt: Instant? = null
 
-    /** Обновляется триггером set_updated_at — для инкрементальной загрузки в аналитику. */
-    @Generated(event = [EventType.INSERT, EventType.UPDATE])
-    @Column(name = "updated_at", nullable = false, insertable = false, updatable = false)
+    /** Обновляется приложением при каждом изменении (триггеров в БД нет) — нужно для инкрементальной выгрузки в аналитику. */
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant? = null
 }
