@@ -1,7 +1,16 @@
 "use client";
 
-import { Typography } from "antd";
+import { Card, Typography } from "antd";
+import { RegisterForm } from "@/features/auth";
+import { PageContainer } from "@/shared/ui";
 
 export function RegisterPage() {
-  return <Typography.Title level={3}>Регистрация</Typography.Title>;
+  return (
+    <PageContainer>
+      <Card>
+        <Typography.Title level={3}>Регистрация</Typography.Title>
+        <RegisterForm />
+      </Card>
+    </PageContainer>
+  );
 }
