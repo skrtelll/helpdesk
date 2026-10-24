@@ -1,9 +1,44 @@
 name: helpdesk
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+x-airflow: &airflow
+  image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-airflow:${IMAGE_TAG:-latest}
+  profiles: [airflow]
+  restart: unless-stopped
+  logging: *logging
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@${AIRFLOW_DB_HOST:-airflow-postgres}:${AIRFLOW_DB_PORT:-5432}/${AIRFLOW_DB_NAME:-airflow}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${AIRFLOW_DB_USER:-airflow}:${AIRFLOW_DB_PASSWORD:-airflow}@${AIRFLOW_DB_HOST:-airflow-postgres}:${AIRFLOW_DB_PORT:-5432}/${AIRFLOW_DB_NAME:-airflow}
+    AIRFLOW__CELERY__BROKER_URL: redis://airflow-redis:6379/0
+    AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_SECRET_KEY:-}
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    AIRFLOW_CONN_HELPDESK_OPERATIONAL: '{"conn_type": "postgres", "host": "${DB_HOST}", "port": ${DB_PORT:-5432}, "schema": "${DB_NAME:-helpdesk}", "login": "${ETL_DB_USER:-${DB_USER:-helpdesk}}", "password": "${ETL_DB_PASSWORD:-${DB_PASSWORD}}"}'
+    AIRFLOW_CONN_HELPDESK_ANALYTICS: '{"conn_type": "postgres", "host": "${DB_HOST}", "port": ${DB_PORT:-5432}, "schema": "${ANALYTICS_DB_NAME:-helpdesk}", "login": "${ETL_DB_USER:-${DB_USER:-helpdesk}}", "password": "${ETL_DB_PASSWORD:-${DB_PASSWORD}}"}'
+  volumes:
+    - airflow-logs:/opt/airflow/logs
+  depends_on: &airflow-depends
+    airflow-redis:
+      condition: service_healthy
+    airflow-init:
+      condition: service_completed_successfully
+
 services:
   backend:
     image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: ${DB_HOST:?DB_HOST is required}
@@ -12,8 +47,6 @@ services:
       DB_USER: ${DB_USER:-helpdesk}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      ML_SERVICE_BASE_URL: http://ml-service:8001
-      ML_INTERNAL_SECRET: ${ML_INTERNAL_SECRET:?ML_INTERNAL_SECRET is required}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
@@ -21,27 +54,10 @@ services:
       retries: 5
       start_period: 60s
 
-  ml-service:
-    image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-ml-service:${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    environment:
-      ML_INTERNAL_SECRET: ${ML_INTERNAL_SECRET:?ML_INTERNAL_SECRET is required}
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')",
-        ]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
   frontend:
     image: ${IMAGE_REGISTRY:-ghcr.io/skrtelll}/helpdesk-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - backend
     healthcheck:
@@ -51,3 +67,82 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  airflow-redis:
+    image: redis:7.4-alpine
+    profiles: [airflow]
+    restart: unless-stopped
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    <<: *airflow
+    restart: "no"
+    command: version
+    environment:
+      <<: *airflow-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-}
+    depends_on: {}
+
+  airflow-apiserver:
+    <<: *airflow
+    command: api-server
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8080/api/v2/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-scheduler:
+    <<: *airflow
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  airflow-dag-processor:
+    <<: *airflow
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+
+  airflow-triggerer:
+    <<: *airflow
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type TriggererJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+
+  airflow-worker:
+    <<: *airflow
+    command: celery worker
+    environment:
+      <<: *airflow-env
+      DUMB_INIT_SETSID: "0"
+    healthcheck:
+      test: ["CMD-SHELL", "celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d \"celery@$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  airflow-logs:
