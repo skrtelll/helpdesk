@@ -1,0 +1,64 @@
+name: loadtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: Число виртуальных пользователей
+        default: "20"
+      duration:
+        description: Длительность полки нагрузки (k6 duration)
+        default: 2m
+      api_prefix:
+        description: Префикс API
+        default: /api/v1
+      login_email:
+        description: Пользователь для логина (пусто — без авторизации)
+        default: ""
+      login_password:
+        description: Пароль пользователя (тестовая БД)
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    env:
+      DB_HOST: postgres
+      DB_PASSWORD: ci-load
+      JWT_SECRET: ci-load-jwt-secret-at-least-32-bytes-long
+      VUS: ${{ inputs.vus }}
+      DURATION: ${{ inputs.duration }}
+      API_PREFIX: ${{ inputs.api_prefix }}
+      LOGIN_EMAIL: ${{ inputs.login_email }}
+      LOGIN_PASSWORD: ${{ inputs.login_password }}
+      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.test.yml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start test stack
+        run: $COMPOSE up -d --build --wait --wait-timeout 300
+      - name: Load test
+        run: |
+          set -o pipefail
+          mkdir -p loadtest/results && chmod 777 loadtest/results
+          $COMPOSE run --rm k6 run /scripts/load.js | tee loadtest/results/stdout.txt
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### k6: ${VUS} VU, ${DURATION}"
+            echo '```'
+            tail -n 20 loadtest/results/stdout.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: k6-results
+          path: loadtest/results
+          retention-days: 14
+      - name: Stop test stack
+        if: always()
+        run: $COMPOSE --profile k6 down -v
