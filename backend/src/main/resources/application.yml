@@ -23,12 +23,25 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  jackson:
+    deserialization:
+      # Лишние поля (status, author, assignee и т.п.) от клиента не принимаются.
+      fail-on-unknown-properties: true
+
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
 server:
   port: 8080
   error:
     include-message: always
 
 app:
+  auth:
+    # Временная заглушка до JWT (спринт 4). В проде не включаем.
+    dev-header: ${APP_DEV_AUTH_HEADER:false}
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-do-not-use-in-prod-please-change}
     access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:60}
@@ -41,6 +54,7 @@ logging:
 management:
   endpoints:
     web:
+      # /health (без /actuator) — его использует Docker healthcheck
       base-path: /
       exposure:
         include: health,info
