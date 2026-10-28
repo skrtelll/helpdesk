@@ -1,0 +1,32 @@
+name: helpdesk-test
+
+services:
+  postgres:
+    ports: !reset []
+    volumes: !reset []
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  backend:
+    ports: !override
+      - "127.0.0.1:${TEST_BACKEND_PORT:-18080}:8080"
+
+  frontend:
+    ports: !reset []
+
+  k6:
+    image: grafana/k6:1.3.0
+    profiles: [k6]
+    environment:
+      BASE_URL: http://backend:8080
+      API_PREFIX: ${API_PREFIX:-/api/v1}
+      VUS: ${VUS:-20}
+      DURATION: ${DURATION:-2m}
+      LOGIN_EMAIL: ${LOGIN_EMAIL:-}
+      LOGIN_PASSWORD: ${LOGIN_PASSWORD:-}
+    volumes:
+      - ./loadtest:/scripts:ro
+      - ./loadtest/results:/results
+    depends_on:
+      backend:
+        condition: service_healthy

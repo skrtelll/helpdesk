@@ -7,11 +7,14 @@ out/
 target/
 build/
 *.jar
+!backend/gradle/wrapper/gradle-wrapper.jar
 *.class
+.gradle/
 
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .venv/
 venv/
 *.joblib
@@ -31,3 +34,4 @@ Thumbs.db
 
 # Logs
 *.log
+loadtest/results/

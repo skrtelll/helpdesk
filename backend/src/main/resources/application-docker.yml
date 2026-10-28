@@ -1,0 +1,10 @@
+management:
+  endpoint:
+    health:
+      # состав БД/диска не показываем наружу
+      show-details: never
+
+logging:
+  level:
+    com.helpdesk.backend: INFO
+    org.hibernate.SQL: WARN
