@@ -5,3 +5,4 @@ class BadRequestException(val code: String, message: String) : RuntimeException(
 class ConflictException(val code: String, message: String) : RuntimeException(message)
 class ForbiddenException(val code: String, message: String) : RuntimeException(message)
 class UnauthorizedException(message: String) : RuntimeException(message)
+class UnprocessableException(val code: String, message: String) : RuntimeException(message)
