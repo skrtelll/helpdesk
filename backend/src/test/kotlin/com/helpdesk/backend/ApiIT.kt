@@ -77,7 +77,7 @@ class ApiIT {
             .andExpect(jsonPath("$.number", startsWith("HD-")))
             .andExpect(jsonPath("$.status").value("NEW"))
             .andExpect(jsonPath("$.priority").value("MEDIUM"))
-            .andExpect(jsonPath("$.category").value("OTHER"))
+            .andExpect(jsonPath("$.category.code").value("OTHER"))
     }
 
     @Test
