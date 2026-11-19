@@ -5,7 +5,7 @@ from airflow.sdk import DAG
 
 with DAG(
     dag_id="helpdesk_connections_check",
-    description="Проверка подключений Airflow к operational и analytics",
+    description="проверка подключений airflow к operational и analytics",
     schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
