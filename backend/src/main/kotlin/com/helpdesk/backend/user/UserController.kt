@@ -19,5 +19,5 @@ class UserController(
 
     @PatchMapping("/me")
     fun updateMe(@Valid @RequestBody req: UpdateProfileRequest): UserResponse =
-        users.updateDisplayName(current.require(), req.displayName)
+        users.updateDisplayName(current.require(), req.displayName!!)
 }

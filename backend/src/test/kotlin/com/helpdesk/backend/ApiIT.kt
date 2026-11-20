@@ -46,6 +46,11 @@ class ApiIT {
     @Autowired lateinit var users: UserRepository
     @Autowired lateinit var json: ObjectMapper
 
+    @Autowired lateinit var jwt: com.helpdesk.backend.security.JwtService
+
+
+    private fun bearer(user: User): String = "Bearer " + jwt.issueAccessToken(user)
+
     private fun newUser(role: Role = Role.USER): User =
         users.saveAndFlush(User().apply {
             email = "u-${UUID.randomUUID()}@test.local"
@@ -148,7 +153,8 @@ class ApiIT {
 
     @Test
     fun categoriesReturnSixActive() {
-        mvc.perform(get("/api/v1/categories"))
+        val u = newUser()
+        mvc.perform(get("/api/v1/categories").header("Authorization", bearer(u)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.length()").value(6))
     }
