@@ -1,8 +1,8 @@
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.sdk import DAG, task
+from airflow.sdk import DAG, get_current_context, task
 
 USER_COLUMNS = (
     "user_id, display_name, role, enabled, source_created_at, source_updated_at"
@@ -24,8 +24,17 @@ def upsert(cursor, table, columns, key, rows):
     )
 
 
-def load_dimension(source, target, query, table, columns, key):
-    source.execute(query)
+def extract(source, query, timestamp_column, window, condition="TRUE"):
+    source.execute(
+        f"{query} WHERE ({condition}) "
+        f"AND (%s::timestamptz IS NULL OR {timestamp_column} >= %s)",
+        (window, window),
+    )
+
+
+def load_table(source, target, query, table, columns, key, window,
+               timestamp_column="updated_at", condition="TRUE"):
+    extract(source, query, timestamp_column, window, condition)
     while rows := source.fetchmany(1000):
         upsert(target, table, columns, key, rows)
 
@@ -34,12 +43,12 @@ def date_key(day):
     return day.year * 10000 + day.month * 100 + day.day if day else None
 
 
-def load_tickets(source, target):
-    source.execute("""
+def load_tickets(source, target, window):
+    extract(source, """
         SELECT id::text, author_id::text, assignee_id::text, category_id::text,
                priority, status, created_at, updated_at, resolved_at, closed_at
         FROM public.tickets
-    """)
+    """, "updated_at", window)
     while rows := source.fetchmany(1000):
         facts = []
         calendar = set()
@@ -79,8 +88,9 @@ def load_tickets(source, target):
 
 with DAG(
     dag_id="helpdesk_initial_load",
-    description="полная загрузка справочников и заявок HelpDesk",
-    schedule=None,
+    description="Первичная и инкрементальная загрузка HelpDesk",
+    schedule="@hourly",
+    is_paused_upon_creation=True,
     start_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
     catchup=False,
     max_active_runs=1,
@@ -95,24 +105,61 @@ with DAG(
             target_conn.autocommit = False
             with source_conn.cursor() as source, target_conn.cursor() as target:
                 source.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-                source.execute("SELECT current_database()")
+                source.execute("SELECT current_database(), transaction_timestamp()")
                 target.execute("SELECT current_database()")
-                if (source.fetchone()[0], target.fetchone()[0]) != ("helpdesk", "helpdesk_analytics"):
+                source_db, upper = source.fetchone()
+                if (source_db, target.fetchone()[0]) != ("helpdesk", "helpdesk_analytics"):
                     raise ValueError("Ожидаются источник helpdesk и назначение helpdesk_analytics")
 
-                load_dimension(source, target, USERS, "dim_user", USER_COLUMNS, "user_id")
-                load_dimension(
-                    source, target, USERS + " WHERE role IN ('SUPPORT', 'ADMIN')",
-                    "dim_support_agent", USER_COLUMNS, "user_id",
+                target.execute(
+                    "SELECT loaded_through FROM analytics.etl_watermark WHERE pipeline = %s",
+                    ("helpdesk",),
                 )
-                load_dimension(
+                previous = target.fetchone()
+                run = get_current_context()["dag_run"]
+                full_reload = (run.conf or {}).get("full_reload") is True
+                if previous and upper < previous[0]:
+                    raise ValueError("Время источника раньше границы предыдущей загрузки")
+                lower = previous[0] - timedelta(days=1) if previous and not full_reload else None
+                window = lower
+
+                dimensions = None
+                load_table(source, target, USERS, "dim_user", USER_COLUMNS, "user_id", dimensions)
+                load_table(
+                    source, target, USERS, "dim_support_agent", USER_COLUMNS,
+                    "user_id", dimensions, condition="role IN ('SUPPORT', 'ADMIN')",
+                )
+                load_table(
                     source, target,
                     "SELECT id::text, code, name, active, created_at, updated_at FROM public.categories",
                     "dim_category",
                     "category_id, code, name, active, source_created_at, source_updated_at",
-                    "category_id",
+                    "category_id", dimensions,
                 )
-                load_tickets(source, target)
+                load_tickets(source, target, window)
+                load_table(
+                    source, target,
+                    "SELECT id::text, ticket_id::text, author_id::text, internal, created_at "
+                    "FROM public.comments",
+                    "fact_ticket_comments", "comment_id, ticket_id, author_id, internal, created_at",
+                    "comment_id", window, timestamp_column="created_at",
+                )
+                load_table(
+                    source, target,
+                    "SELECT id::text, ticket_id::text, changed_by::text, event_type, field_name, created_at "
+                    "FROM public.ticket_history",
+                    "fact_ticket_events", "event_id, ticket_id, changed_by, event_type, field_name, created_at",
+                    "event_id", window, timestamp_column="created_at",
+                )
+                target.execute(
+                    """
+                    INSERT INTO analytics.etl_watermark (pipeline, loaded_through)
+                    VALUES (%s, %s)
+                    ON CONFLICT (pipeline) DO UPDATE
+                    SET loaded_through = EXCLUDED.loaded_through
+                    """,
+                    ("helpdesk", upper),
+                )
             target_conn.commit()
 
     load_analytics()
