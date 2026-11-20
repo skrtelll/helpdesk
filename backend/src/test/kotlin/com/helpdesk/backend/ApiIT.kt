@@ -1,6 +1,7 @@
 package com.helpdesk.backend
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.helpdesk.backend.security.JwtService
 import com.helpdesk.backend.user.Role
 import com.helpdesk.backend.user.User
 import com.helpdesk.backend.user.UserRepository
@@ -38,16 +39,13 @@ class ApiIT {
             r.add("spring.datasource.url", POSTGRES::getJdbcUrl)
             r.add("spring.datasource.username", POSTGRES::getUsername)
             r.add("spring.datasource.password", POSTGRES::getPassword)
-            r.add("app.auth.dev-header") { "true" }
         }
     }
 
     @Autowired lateinit var mvc: MockMvc
     @Autowired lateinit var users: UserRepository
     @Autowired lateinit var json: ObjectMapper
-
-    @Autowired lateinit var jwt: com.helpdesk.backend.security.JwtService
-
+    @Autowired lateinit var jwt: JwtService
 
     private fun bearer(user: User): String = "Bearer " + jwt.issueAccessToken(user)
 
@@ -62,7 +60,7 @@ class ApiIT {
     private fun createTicket(author: User): String {
         val body = mvc.perform(
             post("/api/v1/tickets")
-                .header("X-User-Id", author.id.toString())
+                .header("Authorization", bearer(author))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"title":"VPN","description":"не работает"}""")
         ).andExpect(status().isCreated()).andReturn().response.contentAsString
@@ -74,7 +72,7 @@ class ApiIT {
         val u = newUser()
         mvc.perform(
             post("/api/v1/tickets")
-                .header("X-User-Id", u.id.toString())
+                .header("Authorization", bearer(u))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"title":"VPN","description":"не работает"}""")
         )
@@ -90,7 +88,7 @@ class ApiIT {
         val u = newUser()
         mvc.perform(
             post("/api/v1/tickets")
-                .header("X-User-Id", u.id.toString())
+                .header("Authorization", bearer(u))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"title":"x","description":"y","status":"CLOSED"}""")
         )
@@ -103,7 +101,7 @@ class ApiIT {
         val u = newUser()
         mvc.perform(
             post("/api/v1/tickets")
-                .header("X-User-Id", u.id.toString())
+                .header("Authorization", bearer(u))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"title":"","description":"y"}""")
         )
@@ -115,7 +113,7 @@ class ApiIT {
     @Test
     fun pageSizeIsCappedAt100() {
         val u = newUser()
-        mvc.perform(get("/api/v1/tickets?size=101").header("X-User-Id", u.id.toString()))
+        mvc.perform(get("/api/v1/tickets?size=101").header("Authorization", bearer(u)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.size").value(100))
     }
@@ -123,7 +121,7 @@ class ApiIT {
     @Test
     fun unknownSortFieldIsRejected() {
         val u = newUser()
-        mvc.perform(get("/api/v1/tickets?sort=password").header("X-User-Id", u.id.toString()))
+        mvc.perform(get("/api/v1/tickets?sort=password").header("Authorization", bearer(u)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("INVALID_SORT"))
     }
@@ -133,7 +131,7 @@ class ApiIT {
         val owner = newUser()
         val stranger = newUser()
         val id = createTicket(owner)
-        mvc.perform(get("/api/v1/tickets/$id").header("X-User-Id", stranger.id.toString()))
+        mvc.perform(get("/api/v1/tickets/$id").header("Authorization", bearer(stranger)))
             .andExpect(status().isNotFound())
     }
 
@@ -143,7 +141,7 @@ class ApiIT {
         val id = createTicket(u)
         mvc.perform(
             post("/api/v1/tickets/$id/comments")
-                .header("X-User-Id", u.id.toString())
+                .header("Authorization", bearer(u))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"text":"секрет","internal":true}""")
         )
@@ -162,7 +160,7 @@ class ApiIT {
     @Test
     fun meReturnsCurrentUser() {
         val u = newUser()
-        mvc.perform(get("/api/v1/users/me").header("X-User-Id", u.id.toString()))
+        mvc.perform(get("/api/v1/users/me").header("Authorization", bearer(u)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.email").value(u.email))
     }
