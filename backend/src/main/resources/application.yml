@@ -41,10 +41,12 @@ server:
 app:
   auth:
     # Временная заглушка до JWT (спринт 4). В проде не включаем.
-    dev-header: ${APP_DEV_AUTH_HEADER:false}
+    #dev-header: ${APP_DEV_AUTH_HEADER:false}
+    dev-header: true
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-do-not-use-in-prod-please-change}
-    access-token-ttl-minutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES:60}
+    access-token-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:3600}
+    refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:14}
 
 logging:
   level:

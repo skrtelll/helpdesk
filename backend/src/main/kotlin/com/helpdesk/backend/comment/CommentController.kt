@@ -1,7 +1,10 @@
 package com.helpdesk.backend.comment
 
+import com.helpdesk.backend.common.PageResponse
 import com.helpdesk.backend.security.CurrentUserProvider
 import jakarta.validation.Valid
+import org.springframework.data.domain.Pageable
+import org.springframework.data.web.PageableDefault
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -20,8 +23,11 @@ class CommentController(
 ) {
 
     @GetMapping
-    fun list(@PathVariable ticketId: UUID): List<CommentResponse> =
-        comments.list(current.require(), ticketId)
+    fun list(
+        @PathVariable ticketId: UUID,
+        @PageableDefault(size = 20) pageable: Pageable,
+    ): PageResponse<CommentResponse> =
+        comments.list(current.require(), ticketId, pageable)
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

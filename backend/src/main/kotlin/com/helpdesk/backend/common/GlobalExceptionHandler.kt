@@ -1,5 +1,6 @@
 package com.helpdesk.backend.common
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -22,8 +23,15 @@ class GlobalExceptionHandler {
             ex.bindingResult.fieldErrors.map { FieldViolation(it.field, it.defaultMessage ?: "invalid") })
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun malformed(ex: HttpMessageNotReadableException, req: HttpServletRequest): ResponseEntity<ApiError> =
-        build(400, "MALFORMED_REQUEST", "Некорректный JSON или неизвестное поле", req)
+    fun malformed(ex: HttpMessageNotReadableException, req: HttpServletRequest): ResponseEntity<ApiError> {
+        val cause = ex.cause
+        if (cause is InvalidFormatException && cause.targetType.isEnum) {
+            val field = cause.path.joinToString(".") { it.fieldName ?: "?" }
+            return build(422, "VALIDATION_FAILED", "Недопустимое значение поля $field", req,
+                listOf(FieldViolation(field, "invalid value")))
+        }
+        return build(400, "MALFORMED_REQUEST", "Некорректный JSON или неизвестное поле", req)
+    }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun badParam(ex: MethodArgumentTypeMismatchException, req: HttpServletRequest): ResponseEntity<ApiError> =
@@ -53,9 +61,13 @@ class GlobalExceptionHandler {
     fun conflict(ex: ConflictException, req: HttpServletRequest): ResponseEntity<ApiError> =
         build(409, ex.code, ex.message ?: "Конфликт", req)
 
+    @ExceptionHandler(UnprocessableException::class)
+    fun unprocessable(ex: UnprocessableException, req: HttpServletRequest): ResponseEntity<ApiError> =
+        build(422, ex.code, ex.message ?: "Ошибка валидации", req)
+
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException::class)
     fun optimistic(ex: Exception, req: HttpServletRequest): ResponseEntity<ApiError> =
-        build(409, "OPTIMISTIC_LOCK_CONFLICT", "Запись изменена другим запросом", req)
+        build(409, "VERSION_CONFLICT", "Заявка изменена, обновите данные", req)
 
     @ExceptionHandler(Exception::class)
     fun unexpected(ex: Exception, req: HttpServletRequest): ResponseEntity<ApiError> {
