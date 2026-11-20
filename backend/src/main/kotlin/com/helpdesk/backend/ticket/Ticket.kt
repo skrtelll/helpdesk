@@ -77,12 +77,12 @@ class Ticket {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     var createdAt: Instant? = null
 
-    /** Обновляется приложением при каждом изменении (триггеров в БД нет) — нужно для инкрементальной выгрузки в аналитику. */
+    /** Обновляется приложением при каждом изменении (триггеров в БД нет). */
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant? = null
 
-    /** Optimistic locking. При конфликте Hibernate бросает OptimisticLockException -> 409 VERSION_CONFLICT. */
+    /** Optimistic locking. При конфликте сервис отдаёт 409 VERSION_CONFLICT. */
     @Version
     @Column(nullable = false)
     var version: Long = 0
@@ -93,5 +93,21 @@ class Ticket {
             "Исполнителем заявки может быть только SUPPORT или ADMIN"
         }
         assignee = user
+    }
+
+    /**
+     * Применить действие state machine и проставить временные метки (раздел 4.4).
+     * Время передаётся снаружи, чтобы сущность не зависела от часов приложения.
+     */
+    fun transition(action: TicketAction, now: Instant): TicketStatus {
+        status = TicketStateMachine.next(status, action)
+        when (action) {
+            TicketAction.RESOLVE -> resolvedAt = now
+            TicketAction.REOPEN -> resolvedAt = null
+            TicketAction.CLOSE -> closedAt = now
+            TicketAction.CANCEL -> cancelledAt = now
+            else -> Unit
+        }
+        return status
     }
 }
