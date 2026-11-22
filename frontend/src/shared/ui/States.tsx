@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Button, Empty, Result, Spin } from "antd";
-import { errorText } from "@/shared/api";
+import { ApiError, errorText } from "@/shared/api";
 
 export function LoadingState() {
   return (
@@ -14,6 +14,8 @@ export function LoadingState() {
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  // 403 — экран отказа в доступе (документация, п. 9.1), повторять бессмысленно
+  if (error instanceof ApiError && error.status === 403) return <ForbiddenState />;
   return (
     <Result
       status="error"
@@ -26,4 +28,8 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 
 export function EmptyState({ description, action }: { description: string; action?: ReactNode }) {
   return <Empty description={description} style={{ padding: 32 }}>{action}</Empty>;
+}
+
+export function ForbiddenState() {
+  return <Result status="403" title="Нет доступа" subTitle="Этот раздел недоступен для вашей роли" />;
 }
