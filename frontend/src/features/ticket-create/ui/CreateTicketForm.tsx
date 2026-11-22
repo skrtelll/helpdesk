@@ -23,6 +23,7 @@ export function CreateTicketForm() {
     setError(null);
     setSubmitting(true);
     try {
+      // Клиент передаёт только title и description; статус, категория и приоритет выставляются на backend.
       const ticket = await createTicket({ title: values.title.trim(), description: values.description.trim() });
       router.push(ROUTES.ticket(ticket.id));
     } catch (e) {

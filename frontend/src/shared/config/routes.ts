@@ -4,4 +4,5 @@ export const ROUTES = {
   tickets: "/tickets",
   ticketNew: "/tickets/new",
   ticket: (id: string) => `/tickets/${id}`,
+  queue: "/support/queue",
 } as const;

@@ -1,2 +1,2 @@
 export { PageContainer } from "./PageContainer";
-export { EmptyState, ErrorState, LoadingState } from "./States";
+export { EmptyState, ErrorState, ForbiddenState, LoadingState } from "./States";

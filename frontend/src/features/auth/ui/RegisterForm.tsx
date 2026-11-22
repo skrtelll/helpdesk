@@ -30,7 +30,6 @@ export function RegisterForm() {
     } catch (e) {
       applyFieldErrors(form, e);
       setError(errorText(e));
-    } finally {
       setSubmitting(false);
     }
   }

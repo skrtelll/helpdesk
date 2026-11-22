@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input } from "antd";
+import { getMe, homePath, useSession } from "@/entities/user";
 import { errorText, saveTokens } from "@/shared/api";
 import { ROUTES } from "@/shared/config";
 import { applyFieldErrors } from "@/shared/lib";
@@ -16,6 +17,7 @@ interface Values {
 
 export function LoginForm() {
   const router = useRouter();
+  const { setUser } = useSession();
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,11 +27,12 @@ export function LoginForm() {
     setSubmitting(true);
     try {
       saveTokens(await login(values.email.trim(), values.password));
-      router.push(ROUTES.tickets);
+      const me = await getMe();
+      setUser(me);
+      router.replace(homePath(me.role));
     } catch (e) {
       applyFieldErrors(form, e);
       setError(errorText(e));
-    } finally {
       setSubmitting(false);
     }
   }
